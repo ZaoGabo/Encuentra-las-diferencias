@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Trophy, Star, RefreshCw, Zap } from 'lucide-react';
+import Welcome from './Welcome';
 
 const App = () => {
   const [foundDifferences, setFoundDifferences] = useState([]);
@@ -9,6 +10,9 @@ const App = () => {
   const [wrongClick, setWrongClick] = useState(null);
   const [timeLeft, setTimeLeft] = useState(120);
   const [gameStarted, setGameStarted] = useState(false);
+  const [showWelcomeScreen, setShowWelcomeScreen] = useState(true);
+  // sólo mostramos controles de edición en desarrollo (nosotros)
+  const isDev = import.meta.env.MODE !== 'production';
 
   // Rutas locales para las imágenes del parque al atardecer
   // Coloca tus imágenes en `public/images` con los nombres `original.png` y `modified.png`
@@ -93,8 +97,10 @@ const App = () => {
   }, [dragging, differences]);
 
   const handleEditClick = (e, imageType) => {
-    // calcula porcentaje x,y relativo a la imagen
-    const rect = e.currentTarget.getBoundingClientRect();
+    // calcula porcentaje x,y relativo al contenedor (más fiable que usar el elemento <img>)
+    const container = imageType === 'original' ? originalContainerRef.current : modifiedContainerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
 
@@ -169,21 +175,23 @@ const App = () => {
   const handleImageClick = (e, imageType) => {
     if (!gameStarted || showVictory) return;
 
-    // Calcula coordenadas en píxeles relativos al área de la imagen para comparar de forma consistente
-    const rect = e.currentTarget.getBoundingClientRect();
-  const clickXpx = e.clientX - rect.left;
-  const clickYpx = e.clientY - rect.top;
-  const xPercent = (clickXpx / rect.width) * 100;
-  const yPercent = (clickYpx / rect.height) * 100;
+    // Calcula coordenadas en píxeles relativos al contenedor para comparar de forma consistente
+    const container = imageType === 'original' ? originalContainerRef.current : modifiedContainerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const clickXpx = e.clientX - rect.left;
+    const clickYpx = e.clientY - rect.top;
+    const xPercent = (clickXpx / rect.width) * 100;
+    const yPercent = (clickYpx / rect.height) * 100;
 
     const clickedDiff = differences.find(
       diff => {
-        // convierte la posición guardada (porcentaje) a píxeles en el tamaño actual del elemento
-        const diffXpx = (diff.x / 100) * rect.width;
-        const diffYpx = (diff.y / 100) * rect.height;
+    // convierte la posición guardada (porcentaje) a píxeles en el tamaño actual del elemento
+    const diffXpx = (diff.x / 100) * rect.width;
+    const diffYpx = (diff.y / 100) * rect.height;
 
-        // interpreta diff.radius como porcentaje del menor lado de la imagen para mantener círculo "esférico"
-        const radiusPx = (diff.radius / 100) * Math.min(rect.width, rect.height);
+    // interpreta diff.radius como porcentaje del ancho del contenedor (coincide con la visualización)
+    const radiusPx = (diff.radius / 100) * rect.width;
 
         const distance = Math.hypot(diffXpx - clickXpx, diffYpx - clickYpx);
         return distance <= radiusPx && !foundDifferences.includes(diff.id);
@@ -302,6 +310,13 @@ const App = () => {
 
   return (
     <div className="min-h-screen p-4">
+      {showWelcomeScreen ? (
+        <Welcome
+          onEnter={() => setShowWelcomeScreen(false)}
+          onStart={() => { setShowWelcomeScreen(false); startGame(); }}
+        />
+      ) : null}
+
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-6 mb-6">
@@ -345,6 +360,7 @@ const App = () => {
                 onClick={toggleEditMode}
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all ${editMode ? 'bg-yellow-400 text-white' : 'bg-gray-100 text-gray-800 hover:scale-105'}`}
                 title="Alternar modo edición (clic para fijar diferencias)"
+                style={{ display: isDev ? undefined : 'none' }}
               >
                 <Zap size={18} />
                 {editMode ? 'Edición: ON' : 'Modo edición'}
@@ -354,6 +370,7 @@ const App = () => {
                 onClick={exportDifferences}
                 className="bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-2 rounded-xl font-bold hover:shadow-md transition-all"
                 title="Exportar diferencias (JSON)"
+                style={{ display: isDev ? undefined : 'none' }}
               >
                 Exportar
               </button>
@@ -423,7 +440,7 @@ const App = () => {
                 alt="Imagen Original"
                 className="w-full h-auto select-none"
                 draggable="false"
-                onClick={(e) => editMode ? handleEditClick(e, 'original') : handleImageClick(e, 'original')}
+                onClick={(e) => (isDev && editMode) ? handleEditClick(e, 'original') : handleImageClick(e, 'original')}
                 onError={(e) => {
                   e.target.style.display = 'none';
                   e.target.nextSibling.style.display = 'flex';
@@ -435,7 +452,7 @@ const App = () => {
                 <p className="text-sm text-gray-500 mt-4">Sube tus imágenes a imgur.com o imgbb.com</p>
               </div>
               {renderMarkers('original')}
-              {editMode && renderEditMarkers('original')}
+              {isDev && editMode && renderEditMarkers('original')}
             </div>
           </div>
 
@@ -450,7 +467,7 @@ const App = () => {
                 alt="Imagen Modificada"
                 className="w-full h-auto select-none"
                 draggable="false"
-                onClick={(e) => editMode ? handleEditClick(e, 'modified') : handleImageClick(e, 'modified')}
+                onClick={(e) => (isDev && editMode) ? handleEditClick(e, 'modified') : handleImageClick(e, 'modified')}
                 onError={(e) => {
                   e.target.style.display = 'none';
                   e.target.nextSibling.style.display = 'flex';
@@ -462,7 +479,7 @@ const App = () => {
                 <p className="text-sm text-gray-500 mt-4">Sube tus imágenes a imgur.com o imgbb.com</p>
               </div>
               {renderMarkers('modified')}
-              {editMode && renderEditMarkers('modified')}
+              {isDev && editMode && renderEditMarkers('modified')}
             </div>
           </div>
         </div>
@@ -484,7 +501,7 @@ const App = () => {
                   {foundDifferences.includes(diff.id) ? '✓' : '?'} {diff.name}
                 </div>
                 <div className="text-xs text-gray-500 mt-2">{diff.x}% , {diff.y}% • r={diff.radius}</div>
-                {editMode && (
+                {isDev && editMode && (
                   <div className="mt-2 flex items-center justify-center gap-2">
                     <button onClick={() => removeDifference(diff.id)} className="text-sm px-2 py-1 bg-red-500 text-white rounded">Eliminar</button>
                     <button onClick={() => adjustRadius(diff.id, -1)} className="text-sm px-2 py-1 bg-gray-200 rounded">-</button>
