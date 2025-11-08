@@ -245,20 +245,52 @@ const App = () => {
     setDragging(null);
   };
 
-  const adjustSize = (id, delta) => {
+  const adjustRadius = (id, delta) => {
     setDifferences(prev => prev.map(diff => {
       if (diff.id !== id) return diff;
-      if (diff.type === 'rect') {
-        const width = Math.max(2, (diff.width ?? 10) + delta);
-        const height = Math.max(2, (diff.height ?? 10) + delta);
-        return {
-          ...diff,
-          width: Math.round(width * 100) / 100,
-          height: Math.round(height * 100) / 100
-        };
-      }
       const radius = Math.max(1, (diff.radius ?? 8) + delta);
       return { ...diff, radius: Math.round(radius * 100) / 100 };
+    }));
+  };
+
+  const adjustDimension = (id, key, delta, min = 2) => {
+    setDifferences(prev => prev.map(diff => {
+      if (diff.id !== id) return diff;
+      const current = diff[key] ?? (key === 'width' ? 12 : key === 'height' ? 12 : 0);
+      const next = Math.max(min, current + delta);
+      return { ...diff, [key]: Math.round(next * 100) / 100 };
+    }));
+  };
+
+  const adjustTolerance = (id, delta) => {
+    setDifferences(prev => prev.map(diff => {
+      if (diff.id !== id) return diff;
+      const nextTolerance = Math.max(0, (diff.tolerance ?? 0) + delta);
+      return { ...diff, tolerance: Math.round(nextTolerance * 100) / 100 };
+    }));
+  };
+
+  const changeShapeType = (id, nextType) => {
+    setDifferences(prev => prev.map(diff => {
+      if (diff.id !== id) return diff;
+      if (nextType === 'rect') {
+        const fallbackSize = Math.max(6, (diff.radius ?? 8) * 2);
+        return {
+          ...diff,
+          type: 'rect',
+          width: Math.round((diff.width ?? fallbackSize) * 100) / 100,
+          height: Math.round((diff.height ?? fallbackSize) * 100) / 100,
+        };
+      }
+      if (nextType === 'circle') {
+        const fallbackRadius = (diff.width ?? diff.height ?? 12) / 2;
+        return {
+          ...diff,
+          type: 'circle',
+          radius: Math.round((diff.radius ?? fallbackRadius) * 100) / 100,
+        };
+      }
+      return { ...diff, type: nextType };
     }));
   };
 
@@ -298,6 +330,7 @@ const App = () => {
       x: Math.round(clampPercent(x) * 100) / 100,
       y: Math.round(clampPercent(y) * 100) / 100,
       radius: 8,
+      tolerance: 2,
       name: `Diferencia ${nextId}`
     };
     setDifferences(prev => [...prev, newDiff]);
@@ -384,9 +417,13 @@ const App = () => {
   const handleSizeInput = (id, key, value) => {
     const parsed = parseFloat(value);
     if (Number.isNaN(parsed)) return;
+    let sanitized = parsed;
+    if (key === 'tolerance') sanitized = Math.max(0, parsed);
+    if (key === 'radius') sanitized = Math.max(1, parsed);
+    if (key === 'width' || key === 'height') sanitized = Math.max(2, parsed);
     setDifferences(prev => prev.map(diff => (
       diff.id === id
-        ? { ...diff, [key]: parsed }
+        ? { ...diff, [key]: Math.round(sanitized * 100) / 100 }
         : diff
     )));
   };
@@ -405,6 +442,74 @@ const App = () => {
     if (!wrongClick) return null;
     if (wrongClick.context?.imageType !== imageType) return null;
     return <WrongMarker x={wrongClick.x} y={wrongClick.y} />;
+  };
+
+  const renderEditOverlays = (imageType) => {
+    if (!editMode) return null;
+    return (
+      <>
+        {differences.map(diff => {
+          const tolerance = diff.tolerance ?? 0;
+          if (diff.type === 'rect') {
+            const width = diff.width ?? 10;
+            const height = diff.height ?? 10;
+            const effectiveWidth = width + tolerance * 2;
+            const effectiveHeight = height + tolerance * 2;
+            return (
+              <React.Fragment key={`overlay-${imageType}-${diff.id}`}>
+                <div
+                  className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-lg border-2 border-orange-400/70"
+                  style={{
+                    left: `${diff.x}%`,
+                    top: `${diff.y}%`,
+                    width: `${effectiveWidth}%`,
+                    height: `${effectiveHeight}%`
+                  }}
+                />
+                <div
+                  className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-lg border border-orange-400/40 border-dashed"
+                  style={{
+                    left: `${diff.x}%`,
+                    top: `${diff.y}%`,
+                    width: `${width}%`,
+                    height: `${height}%`
+                  }}
+                />
+              </React.Fragment>
+            );
+          }
+
+          if (diff.type === 'polygon') {
+            return null;
+          }
+
+          const radius = diff.radius ?? 8;
+          const effectiveRadius = radius + tolerance;
+          return (
+            <React.Fragment key={`overlay-${imageType}-${diff.id}`}>
+              <div
+                className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-orange-400/70"
+                style={{
+                  left: `${diff.x}%`,
+                  top: `${diff.y}%`,
+                  width: `${effectiveRadius * 2}%`,
+                  height: `${effectiveRadius * 2}%`
+                }}
+              />
+              <div
+                className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full border border-orange-400/40 border-dashed"
+                style={{
+                  left: `${diff.x}%`,
+                  top: `${diff.y}%`,
+                  width: `${radius * 2}%`,
+                  height: `${radius * 2}%`
+                }}
+              />
+            </React.Fragment>
+          );
+        })}
+      </>
+    );
   };
 
   const renderEditMarkers = (imageType) => {
@@ -431,13 +536,14 @@ const App = () => {
   };
 
   const hintShapeSummary = (diff) => {
+    const tolerance = diff.tolerance ?? 0;
     if (diff.type === 'rect') {
-      return `${diff.x}%, ${diff.y}% • ${diff.width ?? 0}×${diff.height ?? 0}`;
+      return `${diff.x}%, ${diff.y}% • ${diff.width ?? 0}×${diff.height ?? 0} ±${tolerance}`;
     }
     if (diff.type === 'polygon') {
-      return `${diff.points?.length ?? 0} puntos`;
+      return `${diff.points?.length ?? 0} puntos • tol±${tolerance}`;
     }
-    return `${diff.x}%, ${diff.y}% • r=${diff.radius ?? 0}`;
+    return `${diff.x}%, ${diff.y}% • r=${diff.radius ?? 0} ±${tolerance}`;
   };
 
   return (
@@ -645,6 +751,7 @@ const App = () => {
                 <p className="text-xl font-semibold">Imagen no disponible</p>
                 <p className="mt-2 text-sm">Asegúrate de que la ruta "originalImage" apunte a un archivo válido.</p>
               </div>
+              {renderEditOverlays('original')}
               {renderHitMarkers('original')}
               {renderWrongMarker('original')}
               {renderEditMarkers('original')}
@@ -669,6 +776,7 @@ const App = () => {
                 <p className="text-xl font-semibold">Imagen no disponible</p>
                 <p className="mt-2 text-sm">Asegúrate de que la ruta "modifiedImage" apunte a un archivo válido.</p>
               </div>
+              {renderEditOverlays('modified')}
               {renderHitMarkers('modified')}
               {renderWrongMarker('modified')}
               {renderEditMarkers('modified')}
@@ -700,6 +808,24 @@ const App = () => {
 
                   {isDev && editMode && (
                     <div className="mt-3 space-y-2 text-xs text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <label className="w-16">Forma</label>
+                        <select
+                          className="w-full rounded-lg border border-gray-200 px-2 py-1"
+                          value={diff.type ?? 'circle'}
+                          onChange={(event) => changeShapeType(diff.id, event.target.value)}
+                          disabled={diff.type === 'polygon'}
+                        >
+                          <option value="circle">Círculo</option>
+                          <option value="rect">Rectángulo</option>
+                          {diff.type === 'polygon' && <option value="polygon">Polígono</option>}
+                        </select>
+                      </div>
+                      {diff.type === 'polygon' && (
+                        <p className="rounded-lg bg-amber-50 p-2 text-[11px] text-amber-700">
+                          Esta diferencia es un polígono personalizado. Ajusta sus puntos en el JSON si necesitas modificar la forma.
+                        </p>
+                      )}
                       <div className="flex items-center gap-2">
                         <label className="w-10">X</label>
                         <input
@@ -735,35 +861,63 @@ const App = () => {
                             onChange={(event) => handleSizeInput(diff.id, 'radius', event.target.value)}
                           />
                           <div className="flex items-center gap-1">
-                            <button className="rounded-lg bg-gray-100 px-2 py-1" onClick={() => adjustSize(diff.id, -0.5)}>-</button>
-                            <button className="rounded-lg bg-gray-100 px-2 py-1" onClick={() => adjustSize(diff.id, 0.5)}>+</button>
+                            <button className="rounded-lg bg-gray-100 px-2 py-1" onClick={() => adjustRadius(diff.id, -0.5)}>-</button>
+                            <button className="rounded-lg bg-gray-100 px-2 py-1" onClick={() => adjustRadius(diff.id, 0.5)}>+</button>
                           </div>
                         </div>
                       )}
                       {diff.type === 'rect' && (
-                        <div className="flex items-center gap-2">
-                          <label className="w-16">Ancho</label>
-                          <input
-                            type="number"
-                            min="1"
-                            max="100"
-                            step="0.1"
-                            className="w-full rounded-lg border border-gray-200 px-2 py-1"
-                            value={diff.width ?? 10}
-                            onChange={(event) => handleSizeInput(diff.id, 'width', event.target.value)}
-                          />
-                          <label className="w-16">Alto</label>
-                          <input
-                            type="number"
-                            min="1"
-                            max="100"
-                            step="0.1"
-                            className="w-full rounded-lg border border-gray-200 px-2 py-1"
-                            value={diff.height ?? 10}
-                            onChange={(event) => handleSizeInput(diff.id, 'height', event.target.value)}
-                          />
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <label className="w-16">Ancho</label>
+                            <div className="flex items-center gap-1">
+                              <button className="rounded-lg bg-gray-100 px-2 py-1" onClick={() => adjustDimension(diff.id, 'width', -0.5)}>-</button>
+                              <input
+                                type="number"
+                                min="2"
+                                max="100"
+                                step="0.1"
+                                className="w-20 rounded-lg border border-gray-200 px-2 py-1"
+                                value={diff.width ?? 12}
+                                onChange={(event) => handleSizeInput(diff.id, 'width', event.target.value)}
+                              />
+                              <button className="rounded-lg bg-gray-100 px-2 py-1" onClick={() => adjustDimension(diff.id, 'width', 0.5)}>+</button>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label className="w-16">Alto</label>
+                            <div className="flex items-center gap-1">
+                              <button className="rounded-lg bg-gray-100 px-2 py-1" onClick={() => adjustDimension(diff.id, 'height', -0.5)}>-</button>
+                              <input
+                                type="number"
+                                min="2"
+                                max="100"
+                                step="0.1"
+                                className="w-20 rounded-lg border border-gray-200 px-2 py-1"
+                                value={diff.height ?? 12}
+                                onChange={(event) => handleSizeInput(diff.id, 'height', event.target.value)}
+                              />
+                              <button className="rounded-lg bg-gray-100 px-2 py-1" onClick={() => adjustDimension(diff.id, 'height', 0.5)}>+</button>
+                            </div>
+                          </div>
                         </div>
                       )}
+                      <div className="flex items-center gap-2">
+                        <label className="w-16">Tol.</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="50"
+                          step="0.1"
+                          className="w-full rounded-lg border border-gray-200 px-2 py-1"
+                          value={diff.tolerance ?? 0}
+                          onChange={(event) => handleSizeInput(diff.id, 'tolerance', event.target.value)}
+                        />
+                        <div className="flex items-center gap-1">
+                          <button className="rounded-lg bg-gray-100 px-2 py-1" onClick={() => adjustTolerance(diff.id, -0.5)}>-</button>
+                          <button className="rounded-lg bg-gray-100 px-2 py-1" onClick={() => adjustTolerance(diff.id, 0.5)}>+</button>
+                        </div>
+                      </div>
                       <div className="flex items-center justify-between pt-2">
                         <button
                           onClick={() => removeDifference(diff.id)}
