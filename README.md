@@ -1,33 +1,37 @@
 # Encuentra las Diferencias
 
-Aplicación web construida con React + Vite que presenta un minijuego de encontrar diferencias entre dos imágenes. Incluye pantalla de bienvenida, sistema de puntuación, temporizador y soporte para marcadores internos (sólo visibles en modo desarrollo).
+**Estado:** 🚧 *En desarrollo* (recién comenzado)
+
+Este proyecto es una aplicación web tipo juego donde el objetivo es encontrar diferencias entre dos imágenes. Está construido con React y Vite, y permite agregar niveles, ajustar dificultad y visualizar marcadores de diferencias (solo en modo desarrollador).
+
+Características principales:
+- Pantalla de bienvenida
+- Sistema de puntuación y temporizador
+- Niveles configurables
+- Edición de diferencias solo para el autor
+
+Ideal para practicar observación y atención visual.
 
 ## Requisitos
 
 - Node.js 18 o superior
 - npm (viene incluido con Node.js)
 
-## Ejecución local
 
-```bash
-npm install
-npm run dev
-```
+## ¿Cómo probar la aplicación?
 
-Abre la URL que indica Vite (por defecto http://localhost:5173) para probar la app.
+1. Instala Node.js (versión 18 o superior).
+2. Descarga este proyecto y abre una terminal en la carpeta principal.
+3. Ejecuta:
+	```bash
+	npm install
+	npm run dev
+	```
+4. Abre la URL que aparece en la terminal (por defecto http://localhost:5173) en tu navegador.
 
-## Deployment en GitHub Pages
+¡Listo! Ya puedes jugar Encuentra las Diferencias en tu computadora.
 
-El repositorio incluye un flujo automático (`.github/workflows/deploy.yml`) que compila y publica la app en GitHub Pages cada vez que haces push a `main`.
-
-Pasos para activarlo la primera vez:
-
-1. En GitHub, ve a **Settings → Pages** del repositorio.
-2. En **Build and deployment**, selecciona `GitHub Actions` como fuente.
-3. Guarda los cambios.
-4. Haz push a `main` (o usa el botón **Run workflow** en **Actions → Deploy to GitHub Pages**) y espera a que el job termine.
-
-El sitio quedará disponible en `https://<tu-usuario>.github.io/Encuentra-las-diferencias/`.
+Próximamente se publicará un link para jugar online directamente.
 
 ## Personalización de imágenes
 
